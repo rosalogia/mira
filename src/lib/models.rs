@@ -1,7 +1,6 @@
 use super::schema::{posts, posts_tags, tags};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
 
 #[derive(Queryable, Selectable, Identifiable, PartialEq, Debug)]
 #[diesel(table_name = posts)]
