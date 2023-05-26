@@ -36,8 +36,11 @@ impl Query {
                     .collect::<Vec<String>>()
                     .join(" OR ");
                 format!("({})", queries)
+            },
+            Query::Not(q) => {
+                let query = q.to_sql_unsafe();
+                format!("(NOT {})", query)
             }
-            // Query::Not(q) => q.to_sql()
             _ => panic!("Unimplemented"),
         }
     }
@@ -48,7 +51,7 @@ impl Query {
                 let r = (format!("bool_or(t.name = ${})", *counter), vec![s]);
                 *counter += 1;
                 r
-            },
+            }
             Query::And(sq) => {
                 let (queries, values): (Vec<String>, Vec<Vec<String>>) =
                     sq.into_iter().map(|s| s.to_sql_inner(counter)).unzip();
@@ -65,7 +68,10 @@ impl Query {
 
                 (format!("({})", queries), values)
             }
-            // Query::Not(q) => q.to_sql()
+            Query::Not(q) => {
+                let (query, value) = q.to_sql_inner(counter);
+                (format!("(NOT {})", query), value)
+            }
             _ => panic!("Unimplemented"),
         }
     }
@@ -84,7 +90,9 @@ where
 
 fn tag_parser(input: &str) -> IResult<&str, Query> {
     // println!("Tag called on {}", input);
-    let result = ws(map(is_not(" &|!()"), |s: &str| Query::Tag(s.into())))(input);
+    let result = ws(map(is_not("&|!()"), |s: &str| {
+        Query::Tag(s.trim().into())
+    }))(input);
     match result {
         Err(e) => {
             // println!("Tag error: {:?}", e);

@@ -79,6 +79,7 @@ pub async fn view_id(Path(post_id): Path<i32>) -> Result<Json<ViewPost>, axum::h
     let tags: Vec<String> = PostTag::belonging_to(&post)
         .inner_join(schema::tags::table)
         .select(schema::tags::name)
+        .order(schema::tags::name.asc())
         .load(db_conn)
         .unwrap();
 
@@ -102,10 +103,6 @@ pub struct Search {
 
 #[debug_handler]
 pub async fn search(query: Query<Search>) -> Result<Json<Vec<View>>, axum::http::StatusCode> {
-    use schema::posts::dsl::*;
-    use schema::posts_tags::dsl::*;
-    use schema::tags::dsl::*;
-
     let db_conn = &mut establish_connection();
     println!("{}", &query.0.tags);
     let search_query = match parser::parse_boolean_expression(&query.0.tags) {
@@ -122,8 +119,6 @@ pub async fn search(query: Query<Search>) -> Result<Json<Vec<View>>, axum::http:
     let (queries, values) = search_query.to_sql();
     println!("{}", queries);
 
-    // println!("tags: {:?}", tag_list);
-
     let query = format!(
         "SELECT p.id, p.img_path, p.title, p.source, p.posted_at, p.score FROM posts p \
         INNER JOIN posts_tags pt ON pt.post_id = p.id \
@@ -131,19 +126,6 @@ pub async fn search(query: Query<Search>) -> Result<Json<Vec<View>>, axum::http:
         GROUP BY p.id HAVING {}",
         queries
     );
-
-    // let cursor = &mut 0usize;
-    // for i in 1..(values.len() + 1) {
-    //     *cursor = match query.chars().position(|c| c == '$') {
-    //         Some(idx) => idx,
-    //         None => {
-    //             println!("Not enough placeholders in query string for values provided");
-    //             return Err(axum::http::StatusCode::BAD_REQUEST);
-    //         }
-    //     };
-    //     println!("Adding {} at {} in {}", i, *cursor, query);
-    //     query.insert(*cursor, char::from_u32(i as u32).unwrap());
-    // }
 
     println!("{}", query);
 
@@ -164,51 +146,6 @@ pub async fn search(query: Query<Search>) -> Result<Json<Vec<View>>, axum::http:
             return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
-
-    // let post_list: Vec<View> = match sql_query(
-    //     "SELECT p.id, p.img_path, p.title, p.source, p.posted_at, p.score FROM posts p \
-    //     INNER JOIN posts_tags pt ON pt.post_id = p.id \
-    //     INNER JOIN tags t ON t.id = pt.tag_id \
-    //     GROUP BY p.id HAVING (bool_or(t.name = 'black pants') AND bool_or(t.name = 'boots'))"
-    // ).get_results::<Post>(db_conn) {
-    //     Ok(pl) => pl.into_iter().map(|p| View { id: p.id, img_path: p.img_path.unwrap() }).collect(),
-    //     Err(e) => {
-    //         println!("SQL query failure: {:?}", e);
-    //         return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
-    //     }
-    // };
-
-    // let post_list = posts
-    //     .inner_join(posts_tags.on(post_id.eq(schema::posts::id)))
-    //     .inner_join(tags.on(schema::tags::id.eq(tag_id)))
-    //     .group_by(
-    //         sql::<Bool>("bool_or(tags.name = <>")
-    //             .bind::<Text, _>("black pants")
-    //             .sql(" AND bool_or(tags.name = <>)")
-    //             .bind::<Text, _>("boots")
-    //     ).select((schema::posts::id, schema::posts::img_path))
-    //     .order(schema::posts::posted_at.desc())
-    //     .load::<(i32, Option<String>)>(db_conn)
-    //     .unwrap()
-    //     .into_iter()
-    //     .map(|(i, p)| View { id: i , img_path: p.unwrap() } )
-    //     .collect();
-
-    // let post_list = posts
-    //     .inner_join(posts_tags.on(post_id.eq(schema::posts::id)))
-    //     .inner_join(tags.on(schema::tags::id.eq(tag_id)))
-    //     .filter(name.eq_any(&tag_list))
-    //     .group_by(schema::posts::id)
-    //     .having(count_distinct(schema::tags::name).eq(tag_list.len() as i64))
-    //     .select((schema::posts::id, schema::posts::img_path))
-    //     .order(schema::posts::posted_at.desc())
-    //     .load::<(i32, Option<String>)>(db_conn)
-    //     .unwrap()
-    //     .into_iter()
-    //     .map(|(i, p)| View { id: i , img_path: p.unwrap() } )
-    //     .collect();
-
-    // println!("Found posts: {:?}", vec![]);
 
     Ok(Json(post_list))
 }
