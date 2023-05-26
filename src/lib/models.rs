@@ -2,7 +2,7 @@ use super::schema::{posts, posts_tags, tags};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Debug)]
+#[derive(Queryable, QueryableByName, Selectable, Identifiable, PartialEq, Debug)]
 #[diesel(table_name = posts)]
 pub struct Post {
     pub id: i32,
@@ -23,7 +23,7 @@ pub struct NewPost {
     pub score: i32,
 }
 
-#[derive(Queryable, Selectable, Identifiable, PartialEq, Debug)]
+#[derive(Queryable, QueryableByName, Selectable, Identifiable, PartialEq, Debug)]
 #[diesel(table_name = tags)]
 pub struct Tag {
     pub id: i32,
@@ -38,7 +38,7 @@ pub struct NewTag {
     pub category: i32,
 }
 
-#[derive(Identifiable, Selectable, Queryable, Associations, Debug)]
+#[derive(Identifiable, QueryableByName, Selectable, Queryable, Associations, Debug)]
 #[diesel(belongs_to(Post))]
 #[diesel(belongs_to(Tag))]
 #[diesel(table_name = posts_tags)]

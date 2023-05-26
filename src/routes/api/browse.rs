@@ -1,9 +1,10 @@
+use crate::lib::parser;
 use crate::lib::{establish_connection, models::*, schema};
 use axum::extract::{Json, Path, Query};
 use axum_macros::debug_handler;
 use chrono::NaiveDateTime;
-use diesel::dsl::count_distinct;
-use diesel::prelude::*;
+use diesel::sql_types::Text;
+use diesel::{prelude::*, sql_query};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::Deserialize;
 
@@ -37,7 +38,7 @@ impl Serialize for ViewPost {
 #[derive(serde::Serialize, Debug)]
 pub struct View {
     pub id: i32,
-    pub img_path: String
+    pub img_path: String,
 }
 
 #[debug_handler]
@@ -52,7 +53,10 @@ pub async fn view() -> Result<Json<Vec<View>>, axum::http::StatusCode> {
         .load::<(i32, Option<String>)>(db_conn)
         .unwrap()
         .into_iter()
-        .map(|(i, path)| View { id: i, img_path: path.unwrap() })
+        .map(|(i, path)| View {
+            id: i,
+            img_path: path.unwrap(),
+        })
         .collect();
 
     Ok(Json(images))
@@ -72,9 +76,9 @@ pub async fn view_id(Path(post_id): Path<i32>) -> Result<Json<ViewPost>, axum::h
         }
     };
 
-    let tags: Vec<Tag> = PostTag::belonging_to(&post)
+    let tags: Vec<String> = PostTag::belonging_to(&post)
         .inner_join(schema::tags::table)
-        .select(Tag::as_select())
+        .select(schema::tags::name)
         .load(db_conn)
         .unwrap();
 
@@ -85,7 +89,7 @@ pub async fn view_id(Path(post_id): Path<i32>) -> Result<Json<ViewPost>, axum::h
         source: post.source,
         posted_at: post.posted_at,
         score: post.score,
-        tags: tags.iter().map(|tag| tag.name.clone()).collect(),
+        tags: tags.iter().map(|tag| tag.into()).collect(),
     };
 
     Ok(Json(view_post))
@@ -103,23 +107,108 @@ pub async fn search(query: Query<Search>) -> Result<Json<Vec<View>>, axum::http:
     use schema::tags::dsl::*;
 
     let db_conn = &mut establish_connection();
-    let tag_list: Vec<&str> = query.0.tags.split(',').collect();
-    println!("tags: {:?}", tag_list);
+    println!("{}", &query.0.tags);
+    let search_query = match parser::parse_boolean_expression(&query.0.tags) {
+        Ok(query) => {
+            println!("{:?}", query);
+            query
+        }
+        Err(e) => {
+            println!("{:?}", e);
+            return Err(axum::http::StatusCode::BAD_REQUEST);
+        }
+    };
 
-    let post_list = posts
-        .inner_join(posts_tags.on(post_id.eq(schema::posts::id)))
-        .inner_join(tags.on(schema::tags::id.eq(tag_id)))
-        .filter(name.eq_any(&tag_list))
-        .group_by(schema::posts::id)
-        .having(count_distinct(schema::tags::name).eq(tag_list.len() as i64))
-        .select((schema::posts::id, schema::posts::img_path))
-        .load::<(i32, Option<String>)>(db_conn)
-        .unwrap()
+    let (queries, values) = search_query.to_sql();
+    println!("{}", queries);
+
+    // println!("tags: {:?}", tag_list);
+
+    let query = format!(
+        "SELECT p.id, p.img_path, p.title, p.source, p.posted_at, p.score FROM posts p \
+        INNER JOIN posts_tags pt ON pt.post_id = p.id \
+        INNER JOIN tags t ON t.id = pt.tag_id \
+        GROUP BY p.id HAVING {}",
+        queries
+    );
+
+    // let cursor = &mut 0usize;
+    // for i in 1..(values.len() + 1) {
+    //     *cursor = match query.chars().position(|c| c == '$') {
+    //         Some(idx) => idx,
+    //         None => {
+    //             println!("Not enough placeholders in query string for values provided");
+    //             return Err(axum::http::StatusCode::BAD_REQUEST);
+    //         }
+    //     };
+    //     println!("Adding {} at {} in {}", i, *cursor, query);
+    //     query.insert(*cursor, char::from_u32(i as u32).unwrap());
+    // }
+
+    println!("{}", query);
+
+    let query = values
         .into_iter()
-        .map(|(i, p)| View { id: i , img_path: p.unwrap() } )
-        .collect();
+        .fold(sql_query(query).into_boxed(), |q, v| q.bind::<Text, _>(v));
 
-    println!("Found posts: {:?}", post_list);
+    let post_list: Vec<View> = match query.get_results::<Post>(db_conn) {
+        Ok(pl) => pl
+            .into_iter()
+            .map(|p| View {
+                id: p.id,
+                img_path: p.img_path.unwrap(),
+            })
+            .collect(),
+        Err(e) => {
+            println!("SQL query failure: {:?}", e);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // let post_list: Vec<View> = match sql_query(
+    //     "SELECT p.id, p.img_path, p.title, p.source, p.posted_at, p.score FROM posts p \
+    //     INNER JOIN posts_tags pt ON pt.post_id = p.id \
+    //     INNER JOIN tags t ON t.id = pt.tag_id \
+    //     GROUP BY p.id HAVING (bool_or(t.name = 'black pants') AND bool_or(t.name = 'boots'))"
+    // ).get_results::<Post>(db_conn) {
+    //     Ok(pl) => pl.into_iter().map(|p| View { id: p.id, img_path: p.img_path.unwrap() }).collect(),
+    //     Err(e) => {
+    //         println!("SQL query failure: {:?}", e);
+    //         return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+    //     }
+    // };
+
+    // let post_list = posts
+    //     .inner_join(posts_tags.on(post_id.eq(schema::posts::id)))
+    //     .inner_join(tags.on(schema::tags::id.eq(tag_id)))
+    //     .group_by(
+    //         sql::<Bool>("bool_or(tags.name = <>")
+    //             .bind::<Text, _>("black pants")
+    //             .sql(" AND bool_or(tags.name = <>)")
+    //             .bind::<Text, _>("boots")
+    //     ).select((schema::posts::id, schema::posts::img_path))
+    //     .order(schema::posts::posted_at.desc())
+    //     .load::<(i32, Option<String>)>(db_conn)
+    //     .unwrap()
+    //     .into_iter()
+    //     .map(|(i, p)| View { id: i , img_path: p.unwrap() } )
+    //     .collect();
+
+    // let post_list = posts
+    //     .inner_join(posts_tags.on(post_id.eq(schema::posts::id)))
+    //     .inner_join(tags.on(schema::tags::id.eq(tag_id)))
+    //     .filter(name.eq_any(&tag_list))
+    //     .group_by(schema::posts::id)
+    //     .having(count_distinct(schema::tags::name).eq(tag_list.len() as i64))
+    //     .select((schema::posts::id, schema::posts::img_path))
+    //     .order(schema::posts::posted_at.desc())
+    //     .load::<(i32, Option<String>)>(db_conn)
+    //     .unwrap()
+    //     .into_iter()
+    //     .map(|(i, p)| View { id: i , img_path: p.unwrap() } )
+    //     .collect();
+
+    // println!("Found posts: {:?}", vec![]);
 
     Ok(Json(post_list))
 }
