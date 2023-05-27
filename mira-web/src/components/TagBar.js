@@ -77,7 +77,10 @@ function SearchWrapper(props) {
           placeholder="Search…"
           inputProps={{ 'aria-label': 'search' }}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => {if (e.key === "Enter") { props.onSearch(searchQuery); }}}
+          onKeyDown={(e) => {if (e.key === "Enter") {
+            console.log(encodeURIComponent(searchQuery));
+            props.onSearch(encodeURIComponent(searchQuery));
+          }}}
         />
       </Search>
   );

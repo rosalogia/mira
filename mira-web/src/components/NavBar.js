@@ -13,10 +13,11 @@ import MenuIcon from '@mui/icons-material/Menu';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import { Link } from 'react-router-dom';
 import Container from '@mui/material/Container';
 
 const drawerWidth = 240;
-const navItems = ['Posts', 'Tags', 'Contact'];
+const navItems = ['Browse', 'Tags', 'Contact'];
 
 function NavBar(props) {
   const { window } = props;
@@ -86,9 +87,11 @@ function NavBar(props) {
 
             <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }}>
                 {navItems.map((item) => (
-                <Button key={item} sx={{ my: 2, display: 'block', color: '#fff' }}>
-                    {item}
-                </Button>
+                  <Link to={`${item.toLowerCase()}/`} style={{textDecoration: 'none'}}>
+                    <Button key={item} sx={{ my: 2, display: 'block', color: '#fff' }}>
+                        {item}
+                    </Button>
+                  </Link>
                 ))}
             </Box>
 

@@ -1,29 +1,29 @@
-import './App.css';
-import * as React from 'react';
-import Grid from '@mui/material/Grid';
-import NavBar from './components/NavBar';
-import PreviewGrid from './components/PreviewGrid';
-import TagBar from './components/TagBar';
-import { useState, useEffect } from 'react';
+import * as React from "react";
+import Grid from "@mui/material/Grid";
+import PreviewGrid from "../components/PreviewGrid";
+import TagBar from "../components/TagBar";
+import { useState, useEffect } from "react";
 
 async function fetchPost(id) {
-  return fetch("http://localhost:3000/api/browse/view/" + id)
-    .then(response => response.json())
+  return fetch("http://localhost:3000/api/browse/view/" + id).then((response) =>
+    response.json()
+  );
 }
-
 
 function getTags(posts) {
   var s = new Set();
   posts.forEach((p) => {
     fetchPost(p.id)
       .then((p_r) => p_r.tags.forEach((tag) => s.add(tag)))
-      .catch((e) => { console.log(e); })
+      .catch((e) => {
+        console.log(e);
+      });
   });
   // console.log(s);
   return s;
 }
 
-function App() {
+export default function Browse() {
   const [posts, setPosts] = useState([]);
   const [tags, setTags] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,7 +34,7 @@ function App() {
     const allPostsData = await allPosts.json();
     const postPromises = allPostsData.map(async (post) => {
       const postInfo = await fetchPost(post.id);
-      return postInfo.tags
+      return postInfo.tags;
     });
     const postTags = await Promise.all(postPromises);
     const combinedTags = new Set(postTags.flat());
@@ -44,30 +44,28 @@ function App() {
 
   useEffect(() => {
     fetchPosts("/browse/view");
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (searchQuery === "") {
-      fetchPosts("/browse/view")
+      fetchPosts("/browse/view");
     } else {
-      fetchPosts(`/browse/search?tags=${searchQuery.replace(/, /g, ',')}`)
+      fetchPosts(`/browse/search?tags=${searchQuery.replace(/, /g, ",")}`);
     }
   }, [searchQuery]);
 
   return (
-    <div className="App">
-      <NavBar>
-        <Grid container>
-          <Grid xs={2}>
-            <TagBar tags={tags} onSearch={(q) => setSearchQuery(q)} onClickTag={(t) => setSearchQuery(t)}/>
-          </Grid>
-          <Grid xs={10}>
-            <PreviewGrid posts={posts} />
-          </Grid>
-        </Grid>
-      </NavBar>
-    </div>
+    <Grid container>
+      <Grid xs={2}>
+        <TagBar
+          tags={tags}
+          onSearch={(q) => setSearchQuery(q)}
+          onClickTag={(t) => setSearchQuery(t)}
+        />
+      </Grid>
+      <Grid xs={10}>
+        <PreviewGrid posts={posts} />
+      </Grid>
+    </Grid>
   );
 }
-
-export default App;
