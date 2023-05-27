@@ -41,7 +41,6 @@ impl Query {
                 let query = q.to_sql_unsafe();
                 format!("(NOT {})", query)
             }
-            _ => panic!("Unimplemented"),
         }
     }
 
@@ -72,7 +71,6 @@ impl Query {
                 let (query, value) = q.to_sql_inner(counter);
                 (format!("(NOT {})", query), value)
             }
-            _ => panic!("Unimplemented"),
         }
     }
 
