@@ -1,6 +1,6 @@
 # Mira
 
-Mira is an image-board designed for improved flexibility in searches compared to [traditional alternatives](https://github.com/danbooru/danbooru).
+Mira is a taggable image-board implemented in Rust with a React front-end.
 
 ## Building and Running
 
